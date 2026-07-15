@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BDR Performance Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top-row">
+    <div class="header-title">
+      <img id="headerLogo" class="header-logo" alt="">
+      <div>
+        <h1>BDR Performance Dashboard</h1>
+        <p class="subtitle">Daily / Weekly / Monthly outbound metrics</p>
+      </div>
+    </div>
+    <div class="brand-toggle" id="brandToggle"></div>
+  </div>
+
+  <div class="tabs" id="tabBar">
+    <button class="tab-btn active" data-tab="summary">Summary</button>
+    <button class="tab-btn" data-tab="monthly">Monthly Summary</button>
+    <button class="tab-btn" data-tab="weekly">Weekly Summary</button>
+    <button class="tab-btn" data-tab="daily">Daily Summary</button>
+    <button class="tab-btn" data-tab="agent">Agent Summary</button>
+    <button class="tab-btn" data-tab="data">Data (Targets)</button>
+    <button class="tab-btn" data-tab="add">Add Data</button>
+    <button class="tab-btn" data-tab="sources">Data Sources</button>
+  </div>
+
+  <div id="panel-summary" class="panel active"></div>
+  <div id="panel-monthly" class="panel"></div>
+  <div id="panel-weekly" class="panel"></div>
+  <div id="panel-daily" class="panel"></div>
+  <div id="panel-agent" class="panel"></div>
+  <div id="panel-data" class="panel"></div>
+  <div id="panel-add" class="panel"></div>
+  <div id="panel-sources" class="panel"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script src="script.js"></script>
+</body>
+</html>
