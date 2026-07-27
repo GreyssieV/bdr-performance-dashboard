@@ -830,11 +830,54 @@ const SOURCE_NOTES = [
   }
 ];
 const SOURCE_STATUS_LABEL = {auto:"good", partial:"mid", manual:"bad"};
+const METRIC_GUIDE = [
+  {key:"calls", label:"Calls Placed", formula:null,
+   def:"Every outbound call logged against the BDR in HubSpot for the period, regardless of outcome."},
+  {key:"rpcs", label:"RPCs (Right Party Connects)", formula:null,
+   def:"Calls where hs_call_disposition = \"Connected\" -- the BDR actually reached the target contact, not just dialed."},
+  {key:"contacts", label:"Contacts", formula:null,
+   def:"Distinct people (not calls) the BDR reached that day -- deduplicated contact IDs associated with their calls, excluding \"Unassigned\"."},
+  {key:"emailsSent", label:"Emails Sent", formula:null,
+   def:"Outbound emails logged for the BDR (hs_email_direction = \"EMAIL\")."},
+  {key:"emailsOpened", label:"Emails Opened", formula:null,
+   def:"Sales-email open events, attributed to the recipient contact's owner (not necessarily who sent the email)."},
+  {key:"demosSet", label:"Demos Set", formula:null,
+   def:"Leads the BDR advanced into \"Sales Qualified Lead\" stage -- a demo got booked on the calendar, whether or not it happens later."},
+  {key:"scheduled", label:"Scheduled To Show", formula:null,
+   def:"Every lead with a Demo Date on the books for the period, regardless of whether the demo has happened yet or was held."},
+  {key:"held", label:"Held Demo", formula:null,
+   def:"Demos that actually took place (Demo Held = Yes), credited to whoever is listed as \"Demo Set By.\""},
+  {key:"rpcConnectRate", label:"RPC Connect Rate", formula:"RPCs ÷ Calls Placed",
+   def:"Of every call the BDR made, what share actually connected with the right person. Measures dial quality/list quality, not effort."},
+  {key:"rpcToDemoRate", label:"RPC to Demo Conversion Rate", formula:"Demos Set ÷ RPCs",
+   def:"Of every real conversation the BDR had, what share turned into a booked demo. Measures pitch/qualification effectiveness."},
+  {key:"showingRate", label:"Showing Rate", formula:"Held Demo ÷ Scheduled To Show",
+   def:"Of every demo that got on the calendar, what share actually happened. Low showing rate = no-show problem, not a selling problem."},
+  {key:"closedWon", label:"Closed Won", formula:null,
+   def:"Deals that closed as won, attributed via the outbound_bdr field (not the general HubSpot owner field) so credit follows the rep who sourced it."},
+  {key:"saleConversionRate", label:"Sale Conversion Rate", formula:"Closed Won ÷ Held Demo",
+   def:"Of every demo the BDR actually held, what share turned into a signed deal. Measures how well the demo itself converts."},
+  {key:"arr", label:"ARR", formula:null,
+   def:"Annual recurring revenue value of Closed Won deals (amount_in_home_currency), summed for the period."}
+];
 function renderSources(){
   document.getElementById("panel-sources").innerHTML = `
   <div class="card">
     <h3>How This Dashboard Gets Its Data</h3>
     <p class="hint">A running log of where each metric comes from and how it's pulled -- updated as the process changes, so this always reflects what's actually happening, not just how things started.</p>
+  </div>
+  <div class="card">
+    <h3>Metric Definitions &amp; Formulas <span class="pill mid" style="margin-left:8px;">guide</span></h3>
+    <p class="hint" style="margin-top:0;">What each number on this dashboard actually means, and exactly how the rates are calculated. Rates are computed live from the underlying counts for whatever period is selected (day/week/month) -- they are never pulled as a pre-aggregated number from HubSpot.</p>
+    <div class="section-title">Raw counts (pulled directly, not calculated)</div>
+    <table><thead><tr><th class="lbl">Metric</th><th class="lbl">Definition</th></tr></thead><tbody>
+    ${METRIC_GUIDE.filter(m=>!m.formula).map(m=>`<tr><td class="lbl">${m.label}</td><td class="lbl" style="white-space:normal;">${m.def}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="section-title" style="margin-top:14px;">Derived rates (calculated, not sourced from HubSpot)</div>
+    <table><thead><tr><th class="lbl">Metric</th><th class="lbl">Formula</th><th class="lbl">What it tells you</th></tr></thead><tbody>
+    ${METRIC_GUIDE.filter(m=>m.formula).map(m=>`<tr><td class="lbl">${m.label}</td><td class="lbl" style="white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">${m.formula}</td><td class="lbl" style="white-space:normal;">${m.def}</td></tr>`).join("")}
+    </tbody></table>
+    <p class="hint" style="margin-top:10px;">A blank/dash rate means the denominator was zero for that period (e.g. no calls placed yet), not a zero rate.</p>
   </div>
   ${SOURCE_NOTES.map((s,i)=>`
     <div class="card">
