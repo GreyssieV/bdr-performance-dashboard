@@ -152,6 +152,10 @@ function rowsForWeek(brand, monday){ return getAllRows(brand).filter(r=>mondayOf
 function rowsForDay(brand, dateStr){ return getAllRows(brand).filter(r=>r.date===dateStr); }
 
 function uniqueMonths(brand){ return Array.from(new Set(getAllRows(brand).map(r=>monthKeyOf(r.date)))).sort(); }
+// Year-to-date: every row whose year matches the current year (Jan 1 through today).
+function currentYearKey(){ return currentMonthKey().slice(0,4); }
+function rowsForYTD(brand){ const y = currentYearKey(); return getAllRows(brand).filter(r=>r.date.slice(0,4)===y); }
+function ytdLabel(){ return "Year to Date ("+currentYearKey()+")"; }
 function uniqueWeeks(brand){ return Array.from(new Set(getAllRows(brand).map(r=>mondayOf(r.date)))).sort(); }
 function uniqueDays(brand){ return Array.from(new Set(getAllRows(brand).map(r=>r.date))).sort(); }
 // Latest date present across both brands' data (embedded + any extra rows). Used to
@@ -435,17 +439,36 @@ function renderPeriodTab(tabKey, unitLabel, pickerBuilder){
   };
 }
 
+// Monthly Summary's Month picker has one extra "Year to Date" option layered on top of the
+// shared sum_month value. Picking YTD is tracked in its own ui.monthly_ytd flag (NOT written
+// into sum_month) so it never disturbs the shared Day/Week/Month selection used by the other
+// tabs -- picking a real month here still broadcasts as usual and clears the YTD flag.
 function renderMonthly(){
-  renderPeriodTab("monthly","Month",(brand,ui)=>{
-    const months = uniqueMonths(brand);
-    // Month/Week/Day are each one shared value used everywhere, for both brands -- not
-    // per-brand keys -- so picking one here also moves Summary, Weekly/Daily Summary,
-    // Agent Summary, Data (Targets), and the other brand to match.
-    const uiKey = "sum_month";
-    const selected = ui[uiKey] && months.includes(ui[uiKey]) ? ui[uiKey] : (months.includes(currentMonthKey())?currentMonthKey():months[months.length-1]);
-    const onSelect = (ui, val) => broadcastMonth(ui, val, true);
-    return {opts: months.map(m=>({value:m,text:monthLabel(m)})), selected, rowsFn:(m)=>rowsForMonth(brand,m), uiKey, onSelect, targetFrac: monthProration(selected)};
-  });
+  const brand = STATE.brand;
+  const ui = loadJSON(LS.ui, {});
+  const months = uniqueMonths(brand);
+  const isYTD = !!ui.monthly_ytd;
+  const uiKey = "sum_month";
+  const realSelected = ui[uiKey] && months.includes(ui[uiKey]) ? ui[uiKey] : (months.includes(currentMonthKey())?currentMonthKey():months[months.length-1]);
+  const selected = isYTD ? "YTD" : realSelected;
+  const opts = [{value:"YTD", text:ytdLabel()}].concat(months.map(m=>({value:m,text:monthLabel(m)})));
+  const agg = sumRows(isYTD ? rowsForYTD(brand) : rowsForMonth(brand, realSelected));
+  const targetFrac = isYTD ? undefined : monthProration(realSelected);
+  const html = `
+  <div class="card">
+    <div class="row">${periodPickerHTML("monthlyPick", opts, selected, "Month")}</div>
+    <h3>Month: ${isYTD ? ytdLabel() : monthLabel(realSelected)}</h3>
+    ${kpiGrid(agg, brand, targetFrac)}
+  </div>
+  <div class="card"><h3>Full Breakdown</h3>${metricTable(agg)}</div>`;
+  document.getElementById("panel-monthly").innerHTML = html;
+  document.getElementById("monthlyPick").onchange = e=>{
+    const val = e.target.value;
+    if(val==="YTD"){ ui.monthly_ytd = true; }
+    else { ui.monthly_ytd = false; broadcastMonth(ui, val, true); }
+    saveJSON(LS.ui,ui);
+    renderAll();
+  };
 }
 function renderWeekly(){
   renderPeriodTab("weekly","Week",(brand,ui)=>{
@@ -479,10 +502,10 @@ function agentTable(rows){
   rows.forEach(r=>{ (byAgent[r.bdr] = byAgent[r.bdr]||[]).push(r); });
   const names = Object.keys(byAgent).sort();
   if(!names.length) return `<p class="muted small">No data for this period.</p>`;
-  return `<div style="overflow-x:auto;"><table><thead><tr><th class="lbl nowrap">BDR</th>${AGENT_COLS.map(k=>`<th class="num nowrap">${AGENT_LABEL[k]}</th>`).join("")}</tr></thead><tbody>
+  return `<div style="overflow-x:auto;"><table><thead><tr><th class="lbl nowrap sticky-col">BDR</th>${AGENT_COLS.map(k=>`<th class="num nowrap">${AGENT_LABEL[k]}</th>`).join("")}</tr></thead><tbody>
     ${names.map(n=>{
       const agg = deriveRates(sumRows(byAgent[n]));
-      return `<tr><td class="lbl nowrap">${n}</td>${AGENT_COLS.map(k=>`<td class="num">${fmtMetric(k,agg[k])}</td>`).join("")}</tr>`;
+      return `<tr><td class="lbl nowrap sticky-col">${n}</td>${AGENT_COLS.map(k=>`<td class="num">${fmtMetric(k,agg[k])}</td>`).join("")}</tr>`;
     }).join("")}
   </tbody></table></div>`;
 }
@@ -497,6 +520,14 @@ function renderAgent(){
   const wSel = ui["sum_week"] && weeks.includes(ui["sum_week"]) ? ui["sum_week"] : (weeks.includes(mondayOf(todayStr()))?mondayOf(todayStr()):weeks[weeks.length-1]);
   const dSel = ui["sum_day"] && days.includes(ui["sum_day"]) ? ui["sum_day"] : (days.includes(todayStr())?todayStr():days[days.length-1]);
 
+  // Same pattern as Monthly Summary: YTD is an extra option layered on top of the shared
+  // sum_month value, tracked in its own ui.agent_month_ytd flag so it doesn't disturb the
+  // shared Day/Week/Month selection used elsewhere.
+  const isAgentYTD = !!ui.agent_month_ytd;
+  const monthOpts = [{value:"YTD", text:ytdLabel()}].concat(months.map(m=>({value:m,text:monthLabel(m)})));
+  const monthSelected = isAgentYTD ? "YTD" : mSel;
+  const monthRows = isAgentYTD ? rowsForYTD(brand) : rowsForMonth(brand,mSel);
+
   const html = `
   <div class="card">
     <div class="row">${periodPickerHTML("agentDayPick", days.map(d=>({value:d,text:fmtDate(d)})), dSel, "Day")}</div>
@@ -509,9 +540,9 @@ function renderAgent(){
     ${agentTable(rowsForWeek(brand,wSel))}
   </div>
   <div class="card">
-    <div class="row">${periodPickerHTML("agentMonthPick", months.map(m=>({value:m,text:monthLabel(m)})), mSel, "Month")}</div>
-    <h3>${monthLabel(mSel)}</h3>
-    ${agentTable(rowsForMonth(brand,mSel))}
+    <div class="row">${periodPickerHTML("agentMonthPick", monthOpts, monthSelected, "Month")}</div>
+    <h3>${isAgentYTD ? ytdLabel() : monthLabel(mSel)}</h3>
+    ${agentTable(monthRows)}
   </div>`;
   document.getElementById("panel-agent").innerHTML = html;
   // These three pickers drive (and follow) the same shared Day/Week/Month used by
@@ -526,7 +557,9 @@ function renderAgent(){
     saveJSON(LS.ui,ui); renderAgent();
   };
   document.getElementById("agentMonthPick").onchange = e=>{
-    broadcastMonth(ui, e.target.value, true);
+    const val = e.target.value;
+    if(val==="YTD"){ ui.agent_month_ytd = true; }
+    else { ui.agent_month_ytd = false; broadcastMonth(ui, val, true); }
     saveJSON(LS.ui,ui); renderAgent();
   };
 }
